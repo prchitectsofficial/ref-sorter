@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Ref Sorter — Alternate 001 / 002</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  :root {
+    --bg: #0d0d0d;
+    --surface: #161616;
+    --surface2: #1e1e1e;
+    --border: #2a2a2a;
+    --accent: #c8f542;
+    --accent2: #42f5c8;
+    --muted: #555;
+    --text: #e8e8e8;
+    --text2: #888;
+    --danger: #f54242;
+    --success: #42f5a0;
+    --radius: 10px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 20px 80px;
+    background-image:
+      radial-gradient(ellipse 60% 40% at 80% 10%, rgba(200,245,66,0.05) 0%, transparent 60%),
+      radial-gradient(ellipse 40% 30% at 10% 90%, rgba(66,245,200,0.04) 0%, transparent 50%);
+  }
+
+  /* ── Header ─────────────────────────────────── */
+  header {
+    text-align: center;
+    margin-bottom: 48px;
+  }
+  .logo-tag {
+    display: inline-block;
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    padding: 3px 10px;
+    border-radius: 4px;
+    margin-bottom: 16px;
+    text-transform: uppercase;
+  }
+  h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(2rem, 5vw, 3.2rem);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    color: #fff;
+  }
+  h1 span { color: var(--accent); }
+  .subtitle {
+    margin-top: 12px;
+    color: var(--text2);
+    font-size: 0.95rem;
+    font-weight: 300;
+  }
+
+  /* ── Card ────────────────────────────────────── */
+  .card {
+    width: 100%;
+    max-width: 680px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px;
+    margin-bottom: 20px;
+  }
+  .card-title {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text2);
+    margin-bottom: 16px;
+  }
+
+  /* ── Settings row ────────────────────────────── */
+  .settings-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+  }
+  .settings-row label {
+    font-size: 0.88rem;
+    color: var(--text2);
+    white-space: nowrap;
+  }
+  .settings-row input[type="text"] {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.9rem;
+    padding: 8px 14px;
+    border-radius: var(--radius);
+    width: 120px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .settings-row input[type="text"]:focus { border-color: var(--accent); }
+
+  /* ── Drop zone ───────────────────────────────── */
+  #drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 40px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    position: relative;
+  }
+  #drop-zone.drag-over {
+    border-color: var(--accent);
+    background: rgba(200,245,66,0.04);
+  }
+  #drop-zone input[type="file"] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+  }
+  .drop-icon {
+    font-size: 2.4rem;
+    margin-bottom: 12px;
+  }
+  .drop-label {
+    font-size: 1rem;
+    color: var(--text);
+    font-weight: 500;
+  }
+  .drop-label span {
+    color: var(--accent);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .drop-sub {
+    font-size: 0.82rem;
+    color: var(--muted);
+    margin-top: 6px;
+  }
+
+  /* ── File list ───────────────────────────────── */
+  #file-list {
+    margin-top: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .file-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 14px;
+    animation: slideIn 0.2s ease;
+  }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .file-icon { font-size: 1.1rem; flex-shrink: 0; }
+  .file-name {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--text);
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .file-size { font-size: 0.75rem; color: var(--muted); flex-shrink: 0; }
+  .file-status {
+    font-size: 0.75rem;
+    font-family: 'DM Mono', monospace;
+    padding: 2px 8px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+  .file-status.pending  { background: #2a2a2a; color: var(--text2); }
+  .file-status.ok       { background: rgba(66,245,160,0.12); color: var(--success); }
+  .file-status.error    { background: rgba(245,66,66,0.12); color: var(--danger); }
+  .file-status.working  { background: rgba(200,245,66,0.1); color: var(--accent); }
+  .file-remove {
+    background: none; border: none; color: var(--muted); cursor: pointer;
+    font-size: 1rem; line-height: 1; transition: color 0.15s; flex-shrink: 0;
+    padding: 0 2px;
+  }
+  .file-remove:hover { color: var(--danger); }
+
+  /* ── Action row ──────────────────────────────── */
+  .actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 24px;
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 500;
+    padding: 11px 22px;
+    border-radius: var(--radius);
+    border: none;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #0d0d0d;
+    font-weight: 700;
+    flex: 1;
+    justify-content: center;
+    min-width: 200px;
+  }
+  .btn-primary:hover:not(:disabled) { opacity: 0.88; }
+
+  .btn-ghost {
+    background: var(--surface2);
+    color: var(--text2);
+    border: 1px solid var(--border);
+  }
+  .btn-ghost:hover:not(:disabled) { color: var(--text); border-color: var(--muted); }
+
+  /* ── Progress bar ────────────────────────────── */
+  .progress-wrap {
+    margin-top: 20px;
+    display: none;
+  }
+  .progress-wrap.show { display: block; }
+  .progress-label {
+    font-size: 0.8rem;
+    color: var(--text2);
+    font-family: 'DM Mono', monospace;
+    margin-bottom: 8px;
+  }
+  .progress-bar-bg {
+    background: var(--surface2);
+    border-radius: 99px;
+    height: 6px;
+    overflow: hidden;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 99px;
+    width: 0%;
+    transition: width 0.3s ease;
+  }
+
+  /* ── Log / summary ───────────────────────────── */
+  #log {
+    margin-top: 16px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.78rem;
+    color: var(--text2);
+    line-height: 1.8;
+    display: none;
+  }
+  #log.show { display: block; }
+  #log .log-ok    { color: var(--success); }
+  #log .log-err   { color: var(--danger); }
+  #log .log-info  { color: var(--text2); }
+
+  /* ── How it works ────────────────────────────── */
+  .how {
+    width: 100%;
+    max-width: 680px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+  }
+  .how-step {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 16px;
+    text-align: center;
+  }
+  .how-num {
+    font-family: 'Syne', sans-serif;
+    font-size: 1.8rem;
+    font-weight: 800;
+    color: var(--accent);
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+  .how-text {
+    font-size: 0.82rem;
+    color: var(--text2);
+    line-height: 1.5;
+  }
+
+  .divider {
+    width: 100%;
+    max-width: 680px;
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 8px 0 20px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-tag">CSV Tool</div>
+  <h1>Alternate <span>Ref</span> Sorter</h1>
+  <p class="subtitle">Drop CSVs → rows sort 001, 002, 001, 002… → download as ZIP</p>
+</header>
+
+<div class="how">
+  <div class="how-step">
+    <div class="how-num">01</div>
+    <div class="how-text">Drop or browse your CSV files</div>
+  </div>
+  <div class="how-step">
+    <div class="how-num">02</div>
+    <div class="how-text">Set your Ref column name</div>
+  </div>
+  <div class="how-step">
+    <div class="how-num">03</div>
+    <div class="how-text">Click Process &amp; Download ZIP</div>
+  </div>
+  <div class="how-step">
+    <div class="how-num">04</div>
+    <div class="how-text">Original filenames kept inside</div>
+  </div>
+</div>
+
+<hr class="divider" style="margin-top:24px;" />
+
+<div class="card">
+  <div class="card-title">Configuration</div>
+
+  <div class="settings-row">
+    <label for="ref-col">Ref column name:</label>
+    <input type="text" id="ref-col" value="Ref" placeholder="e.g. Ref" />
+    <span style="font-size:0.8rem;color:var(--muted)">Rows with 001 &amp; 002 will be interleaved</span>
+  </div>
+
+  <div class="card-title">CSV Files</div>
+
+  <div id="drop-zone">
+    <input type="file" id="file-input" accept=".csv" multiple />
+    <div class="drop-icon">📂</div>
+    <div class="drop-label">Drag &amp; drop CSVs here, or <span>browse files</span></div>
+    <div class="drop-sub">Multiple files supported · Only .csv</div>
+  </div>
+
+  <div id="file-list"></div>
+
+  <div class="actions">
+    <button class="btn btn-ghost" id="btn-clear" onclick="clearAll()">🗑 Clear All</button>
+    <button class="btn btn-primary" id="btn-process" onclick="processAll()">⚡ Process &amp; Download ZIP</button>
+  </div>
+
+  <div class="progress-wrap" id="progress-wrap">
+    <div class="progress-label" id="progress-label">Processing…</div>
+    <div class="progress-bar-bg">
+      <div class="progress-bar-fill" id="progress-bar"></div>
+    </div>
+  </div>
+
+  <div id="log"></div>
+</div>
+
+<script>
+const files = []; // { file, name, size }
+
+function fmtSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes/1024).toFixed(1) + ' KB';
+  return (bytes/1048576).toFixed(1) + ' MB';
+}
+
+function renderList() {
+  const el = document.getElementById('file-list');
+  el.innerHTML = '';
+  files.forEach((f, i) => {
+    const div = document.createElement('div');
+    div.className = 'file-item';
+    div.id = `fi-${i}`;
+    div.innerHTML = `
+      <span class="file-icon">📄</span>
+      <span class="file-name" title="${f.name}">${f.name}</span>
+      <span class="file-size">${fmtSize(f.size)}</span>
+      <span class="file-status pending" id="st-${i}">pending</span>
+      <button class="file-remove" onclick="removeFile(${i})" title="Remove">✕</button>
+    `;
+    el.appendChild(div);
+  });
+}
+
+function addFiles(newFiles) {
+  for (const f of newFiles) {
+    if (!f.name.toLowerCase().endsWith('.csv')) continue;
+    if (files.some(x => x.name === f.name && x.size === f.size)) continue;
+    files.push({ file: f, name: f.name, size: f.size });
+  }
+  renderList();
+  clearLog();
+}
+
+function removeFile(i) {
+  files.splice(i, 1);
+  renderList();
+  clearLog();
+}
+
+function clearAll() {
+  files.length = 0;
+  renderList();
+  clearLog();
+  setProgress(0, '');
+  document.getElementById('progress-wrap').classList.remove('show');
+}
+
+function clearLog() {
+  const l = document.getElementById('log');
+  l.innerHTML = '';
+  l.classList.remove('show');
+}
+
+function setProgress(pct, label) {
+  document.getElementById('progress-bar').style.width = pct + '%';
+  document.getElementById('progress-label').textContent = label;
+}
+
+function setStatus(i, cls, text) {
+  const el = document.getElementById(`st-${i}`);
+  if (!el) return;
+  el.className = `file-status ${cls}`;
+  el.textContent = text;
+}
+
+function log(html) {
+  const l = document.getElementById('log');
+  l.classList.add('show');
+  l.innerHTML += html + '<br>';
+}
+
+function alternateSortCSV(csvText, refCol) {
+  return new Promise((resolve, reject) => {
+    const result = Papa.parse(csvText, { header: true, skipEmptyLines: true });
+    if (result.errors.length) {
+      const serious = result.errors.filter(e => e.type !== 'Delimiter');
+      if (serious.length) return reject(new Error(result.errors[0].message));
+    }
+    const rows = result.data;
+    const fields = result.meta.fields;
+
+    // Find ref column case-insensitively
+    const colKey = fields.find(f => f.trim().toLowerCase() === refCol.trim().toLowerCase());
+    if (!colKey) return reject(new Error(`Column "${refCol}" not found. Columns: ${fields.join(', ')}`));
+
+    const normalize = v => String(v || '').trim().padStart(3, '0');
+    const g001 = rows.filter(r => normalize(r[colKey]) === '001');
+    const g002 = rows.filter(r => normalize(r[colKey]) === '002');
+    const other = rows.filter(r => !['001','002'].includes(normalize(r[colKey])));
+
+    const sorted = [];
+    const maxLen = Math.max(g001.length, g002.length);
+    for (let i = 0; i < maxLen; i++) {
+      if (i < g001.length) sorted.push(g001[i]);
+      if (i < g002.length) sorted.push(g002[i]);
+    }
+    sorted.push(...other);
+
+    const csv = Papa.unparse(sorted, { columns: fields });
+    resolve(csv);
+  });
+}
+
+async function processAll() {
+  if (!files.length) { alert('Please add at least one CSV file.'); return; }
+
+  const refCol = document.getElementById('ref-col').value.trim() || 'Ref';
+  const btn = document.getElementById('btn-process');
+  btn.disabled = true;
+  clearLog();
+  document.getElementById('progress-wrap').classList.add('show');
+
+  const zip = new JSZip();
+  let done = 0, ok = 0, errs = 0;
+
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i];
+    setStatus(i, 'working', 'processing');
+    setProgress(Math.round((i / files.length) * 100), `Processing ${i+1}/${files.length}: ${f.name}`);
+
+    try {
+      const text = await f.file.text();
+      const sorted = await alternateSortCSV(text, refCol);
+      zip.file(f.name, sorted);
+      setStatus(i, 'ok', 'done ✓');
+      log(`<span class="log-ok">✓ ${f.name}</span>`);
+      ok++;
+    } catch (e) {
+      setStatus(i, 'error', 'error ✗');
+      log(`<span class="log-err">✗ ${f.name} — ${e.message}</span>`);
+      errs++;
+    }
+    done++;
+  }
+
+  setProgress(100, 'Generating ZIP…');
+
+  try {
+    const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'sorted_refs.zip';
+    a.click();
+    URL.revokeObjectURL(url);
+    setProgress(100, `Complete — ${ok} sorted, ${errs} failed`);
+    log(`<span class="log-info">─────────────────────</span>`);
+    log(`<span class="log-ok">ZIP downloaded: ${ok} file(s) sorted</span>`);
+    if (errs) log(`<span class="log-err">${errs} file(s) had errors</span>`);
+  } catch(e) {
+    log(`<span class="log-err">ZIP generation failed: ${e.message}</span>`);
+  }
+
+  btn.disabled = false;
+}
+
+// Drop zone
+const dz = document.getElementById('drop-zone');
+const fi = document.getElementById('file-input');
+
+fi.addEventListener('change', () => { addFiles(fi.files); fi.value = ''; });
+
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+dz.addEventListener('drop', e => {
+  e.preventDefault();
+  dz.classList.remove('drag-over');
+  addFiles(e.dataTransfer.files);
+});
+</script>
+</body>
+</html>
