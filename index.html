@@ -637,13 +637,19 @@ function loadKeywords(){
 
 function saveKeywords(){
   localStorage.setItem(KW_STORAGE_KEY,JSON.stringify(keywords));
+  // also update the "default" baseline so Reset restores these too
+  localStorage.setItem(KW_STORAGE_KEY+'_baseline',JSON.stringify(keywords));
   const btn=document.getElementById('btn-save-kw');
   btn.classList.add('saved');btn.textContent='✓ Saved!';
   setTimeout(()=>{btn.classList.remove('saved');btn.textContent='💾 Save keywords';},2000);
 }
 
 function resetKeywords(){
-  keywords=[...DEFAULT_KEYWORDS];
+  // restore last saved baseline; fall back to hardcoded defaults if never saved
+  try{
+    const baseline=localStorage.getItem(KW_STORAGE_KEY+'_baseline');
+    keywords=baseline?JSON.parse(baseline):[...DEFAULT_KEYWORDS];
+  }catch{keywords=[...DEFAULT_KEYWORDS];}
   renderKeywords();
 }
 
